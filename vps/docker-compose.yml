@@ -1,0 +1,53 @@
+version: '3'
+
+networks:
+  bbw:
+    external: true
+  confined:
+    external: false
+    driver: bridge
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./data/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./data/caddy/data:/data
+      - ./data/caddy/config:/config
+    networks:
+      - bbw
+      - confined
+
+  ghost:
+    image: ghost:5-alpine
+    restart: always
+    environment:
+      - url=${MYURL}
+      - mail__transport=SMTP
+      - mail__options__host=${MAILHOST}
+      - mail__options__port=${MAILPORT}
+      - mail__options__auth__user=${MAILUSER}
+      - mail__options__auth__pass=${MAILPASSW}
+      - mail__from=${MAILFROM}
+    volumes:
+      - ./data/ghost/data:/var/lib/ghost/content
+    networks:
+      - confined
+
+  openvpn:
+    cap_add:
+      - NET_ADMIN
+    image: castone38/dockervpn
+    container_name: openvpn
+    ports:
+      - "1194:1194/udp"
+    restart: always
+    volumes:
+      - ./data/openvpn/conf:/etc/openvpn
+    networks:
+      - bbw

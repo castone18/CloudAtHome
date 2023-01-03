@@ -1,0 +1,51 @@
+# The Caddyfile is an easy way to configure your Caddy web server.
+#
+# Unless the file starts with a global options block, the first
+# uncommented line is always the address of your site.
+#
+# To use your own domain name (with automatic HTTPS), first make
+# sure your domain's A/AAAA DNS records are properly pointed to
+# this machine's public IP, then replace ":80" below with your
+# domain name.
+
+{
+    # Global options block. Entirely optional, https is on by default
+    # Optional email key for lets encrypt
+    email cloudadmin@sombrio.com 
+    # Optional staging lets encrypt for testing. Comment out for production.
+    acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+https://example.com, https://www.example.com {
+    encode zstd gzip
+	reverse_proxy ghost:2368
+    header {
+        # enable HSTS
+        Strict-Transport-Security max-age=31536000;
+        # disable clients from sniffing the media type
+        X-Content-Type-Options nosniff
+        # clickjacking protection
+        X-Frame-Options DENY
+        # keep referrer data off of HTTP connections
+        Referrer-Policy no-referrer-when-downgrade
+        # Content-Security-Policy: default-src 'self'
+    }
+}
+# marker one for install script
+
+https://cloud.example.com:443 {
+    reverse_proxy localhost:11000
+}
+# marker two for install script
+
+https://cloud.example.com:8443 {
+    reverse_proxy https://localhost:8080 {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+}
+# marker three for install script
+
+# Refer to the Caddy docs for more information:
+# https://caddyserver.com/docs/caddyfile
