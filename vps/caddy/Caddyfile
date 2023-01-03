@@ -16,6 +16,8 @@
     acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
 
+# marker zero for install script
+
 https://example.com, https://www.example.com {
     encode zstd gzip
 	reverse_proxy ghost:2368
@@ -31,20 +33,23 @@ https://example.com, https://www.example.com {
         # Content-Security-Policy: default-src 'self'
     }
 }
+
 # marker one for install script
 
 https://cloud.example.com:443 {
-    reverse_proxy localhost:11000
+    reverse_proxy 10.8.0.2:11000
 }
+
 # marker two for install script
 
 https://cloud.example.com:8443 {
-    reverse_proxy https://localhost:8080 {
+    reverse_proxy https://10.8.0.2:8080 {
         transport http {
             tls_insecure_skip_verify
         }
     }
 }
+
 # marker three for install script
 
 # Refer to the Caddy docs for more information:
