@@ -110,9 +110,16 @@ install() {
         MYDOMAIN=$domain_name
         sed -i "s/MYDOMAIN=.*/MYDOMAIN=\"$domain_name\"/" /srv/cloudAtHome/.env
         sed -i "s%MYURL=.*%MYURL=\"https://www.$domain_name\"%" /srv/cloudAtHome/.env
-        sed -i "/marker zero/,/marker one/{s%https:.*%https://${MYDOMAIN}, https://www.${MYDOMAIN} \{%}" /srv/caddy/Caddyfile
-        sed -i "/marker one/,/marker two/{s%https://cloud.*%https://cloud.${MYDOMAIN}:443 \{%}" /srv/caddy/Caddyfile
-        sed -i "/marker two/,/marker three/{s%https://cloud.*%https://cloud.${MYDOMAIN}:8443 \{%}" /srv/caddy/Caddyfile
+        sed -i "/marker one/,/marker two/{s%https:.*%https://${MYDOMAIN}, https://www.${MYDOMAIN} \{%}" /srv/caddy/Caddyfile
+        sed -i "/marker two/,/marker three/{s%https://cloud.*%https://cloud.${MYDOMAIN}:443 \{%}" /srv/caddy/Caddyfile
+        sed -i "/marker three/,/marker four/{s%https://cloud.*%https://cloud.${MYDOMAIN}:8443 \{%}" /srv/caddy/Caddyfile
+    fi
+
+    echo "Let's Encrypt configuration:"
+    read -p "   Enter your email for Let's Encrypt registration ($LETSENCRYPTEMAIL) : " lets_encrypt_email
+    if [ ! -z "$lets_encrypt_email" ]; then
+        LETSENCRYPTEMAIL=$lets_encrypt_email
+        sed -i "/marker zero/,/marker one/{s/email.*/email $lets_encrypt_email/}" /srv/caddy/Caddyfile
     fi
 
     #echo "Web Proxy configuration:"
@@ -120,8 +127,8 @@ install() {
     #if [ ! -z "$nextcloud_ip" ]; then
     #    MYNEXTCLOUDIP=$nextcloud_ip
     #    sed -i "s/MYNEXTCLOUDIP=.*/MYNEXTCLOUDIP=\"${nextcloud_ip}\"/" /srv/cloudAtHome/.env
-    #    sed -i "/marker one/,/marker two/{s/reverse_proxy.*/reverse_proxy ${MYNEXTCLOUDIP}:11000/}" /srv/caddy/Caddyfile
-    #    sed -i "/marker two/,/marker three/{s%reverse_proxy.*%reverse_proxy https://${MYNEXTCLOUDIP}:8080 \{%}" /srv/caddy/Caddyfile
+    #    sed -i "/marker two/,/marker three/{s/reverse_proxy.*/reverse_proxy ${MYNEXTCLOUDIP}:11000/}" /srv/caddy/Caddyfile
+    #    sed -i "/marker three/,/marker four/{s%reverse_proxy.*%reverse_proxy https://${MYNEXTCLOUDIP}:8080 \{%}" /srv/caddy/Caddyfile
     #fi
 
     echo "Ghost blog configuration:"
@@ -233,7 +240,9 @@ install() {
 
     [ ! -f "/srv/cloudAtHome/docker-compose.yml" ] && cp docker-compose.yml /srv/cloudAtHome/docker-compose.yml
     cd /srv/cloudAtHome
+    echo "Starting containers. This can take a few minutes to complete."
     docker-compose up -d
+    echo "CloudAtHome vps install complete."
 }
 
 ls() {

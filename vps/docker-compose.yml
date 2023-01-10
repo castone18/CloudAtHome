@@ -7,6 +7,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8443:8443"
     volumes:
       - /srv/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /srv/caddy/data:/data
@@ -21,17 +22,23 @@ services:
     environment:
       - MARIADB_ROOT_PASSWORD=${DBROOTPASSW}
     restart: unless-stopped
-    expose:
+    ports:
       - "3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
   ghost:
     image: ghost:5-alpine
     container_name: ghost
     depends_on:
-      - caddy
-      - ghost-db
+      caddy:
+        condition: service_started
+      ghost-db:
+        condition: service_healthy
     restart: unless-stopped
-    expose:
+    ports:
       - "2368"
     environment:
       - NODE_ENV=production

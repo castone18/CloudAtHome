@@ -1,4 +1,5 @@
 MYDOMAIN="example.com"
+LETSENCRYPTEMAIL="youremail@example.com"
 MAILHOST="mail.example.com"
 MAILPORT=587
 MAILUSER="yourlogin@example.com"

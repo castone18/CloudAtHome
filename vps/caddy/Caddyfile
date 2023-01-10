@@ -8,15 +8,17 @@
 # this machine's public IP, then replace ":80" below with your
 # domain name.
 
+# marker zero for install script
+
 {
     # Global options block. Entirely optional, https is on by default
     # Optional email key for lets encrypt
-    email cloudadmin@sombrio.com 
+    email youremail@example.com 
     # Optional staging lets encrypt for testing. Comment out for production.
     acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
 
-# marker zero for install script
+# marker one for install script
 
 https://example.com, https://www.example.com {
     encode zstd gzip
@@ -34,13 +36,13 @@ https://example.com, https://www.example.com {
     }
 }
 
-# marker one for install script
+# marker two for install script
 
 https://cloud.example.com:443 {
     reverse_proxy nextcloud:11000
 }
 
-# marker two for install script
+# marker three for install script
 
 https://cloud.example.com:8443 {
     reverse_proxy https://nextcloud:8080 {
@@ -50,7 +52,7 @@ https://cloud.example.com:8443 {
     }
 }
 
-# marker three for install script
+# marker four for install script
 
 # Refer to the Caddy docs for more information:
 # https://caddyserver.com/docs/caddyfile
