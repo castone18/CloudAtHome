@@ -1,7 +1,9 @@
 MYDOMAIN="example.com"
-MYNEXTCLOUDIP="10.8.0.2"
 MAILHOST="mail.example.com"
 MAILPORT=587
 MAILUSER="yourlogin@example.com"
 MAILPASSW="your_password"
 MAILFROM="Cloud Admin <youremail@example.com>"
+MYURL="www.example.com"
+DBROOTPASSW="mysql_root_password"
+DBUSERPASSW="ghost_user_password"
