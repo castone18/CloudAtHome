@@ -119,6 +119,7 @@ install() {
     read -p "   Enter your email for Let's Encrypt registration ($LETSENCRYPTEMAIL) : " lets_encrypt_email
     if [ ! -z "$lets_encrypt_email" ]; then
         LETSENCRYPTEMAIL=$lets_encrypt_email
+        sed -i "s/LETSENCRYPTEMAIL=.*/LETSENCRYPTEMAIL=\"$lets_encrypt_email\"/" /srv/cloudAtHome/.env
         sed -i "/marker zero/,/marker one/{s/email.*/email $lets_encrypt_email/}" /srv/caddy/Caddyfile
     fi
 
