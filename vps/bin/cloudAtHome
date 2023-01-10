@@ -90,6 +90,7 @@ install() {
     mkdir -p /srv/cloudAtHome
     [ ! -f "/srv/caddy/Caddyfile" ] && cp caddy/Caddyfile /srv/caddy/Caddyfile
     [ ! -f "/srv/cloudAtHome/.env" ] && cp dotenv.txt /srv/cloudAtHome/.env
+    [ ! -f "/usr/local/bin/cloudAtHome" ] && cp $0 /usr/local/bin/cloudAtHome
     chmod 770 /srv/cloudAtHome/.env
     chown root:root /srv/cloudAtHome/.env
     #docker network ls | grep confined
@@ -108,7 +109,7 @@ install() {
     if [ ! -z "$domain_name" ]; then
         MYDOMAIN=$domain_name
         sed -i "s/MYDOMAIN=.*/MYDOMAIN=\"$domain_name\"/" /srv/cloudAtHome/.env
-        sed -i "s/MYURL=.*/MYURL=\"www.$domain_name\"/" /srv/cloudAtHome/.env
+        sed -i "s%MYURL=.*%MYURL=\"https://www.$domain_name\"%" /srv/cloudAtHome/.env
         sed -i "/marker zero/,/marker one/{s%https:.*%https://${MYDOMAIN}, https://www.${MYDOMAIN} \{%}" /srv/caddy/Caddyfile
         sed -i "/marker one/,/marker two/{s%https://cloud.*%https://cloud.${MYDOMAIN}:443 \{%}" /srv/caddy/Caddyfile
         sed -i "/marker two/,/marker three/{s%https://cloud.*%https://cloud.${MYDOMAIN}:8443 \{%}" /srv/caddy/Caddyfile
@@ -154,28 +155,66 @@ install() {
         DBROOTPASSW=$db_rootpassw
         sed -i "s/DBROOTPASSW=.*/DBROOTPASSW=\"${db_rootpassw}\"/" /srv/cloudAtHome/.env
     fi
-    read -p $'\n'"   Enter Ghost database user password : " -s db_userpassw
-    if [ ! -z "$db_userpassw" ]; then
-        DBUSERPASSW=$db_userpassw
-        sed -i "s/DBUSERPASSW=.*/DBUSERPASSW=\"${db_userpassw}\"/" /srv/cloudAtHome/.env
-    fi
 
     cat /srv/caddy/Caddyfile
-    read -p $'\n'"Please verify contents of Web Proxy configuration file. Proceed (Y/n) ? " answer
+    read -p $'\n'"Please verify contents of Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
     if [ ! -z "$answer" ]; then
-        if [[ $answer != "Y" && $answer != "y" ]]; then
-            exit 1
-        fi
+        while [[ $answer != "Y" && $answer != "y" && $answer != "Yes" && $answer != "yes" ]]; do
+            if [[ $answer == "N" || $answer == "n" || $answer == "no" ]]; then
+                exit 1
+            fi
+            if [[ $answer == "E" || $answer == "e" || $answer == "edit" ]]; then
+                which nano
+                if [[ $? == 1 ]]; then
+                    which vi
+                    if [[ $? == 1 ]]; then
+                        echo "Can not find nano or vi editors, please install one of those editors."
+                        exit 1
+                    fi
+                    vi /srv/caddy/Caddyfile
+                else
+                    nano /srv/caddy/Caddyfile
+                fi
+            fi
+            unset answer
+            cat /srv/caddy/Caddyfile
+            read -p "Please verify contents of Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
+            if [ -z "$answer" ]; then
+                answer="Y"
+            fi
+        done
     fi
 
     echo ""
     echo ""
+    unset answer
     cat /srv/cloudAtHome/.env
-    read -p "Please verify contents of docker compose configuration variables file. Proceed (Y/n) ? " answer
+    read -p "Please verify contents of docker compose configuration variables file. Proceed (Yes/no/edit) ? " answer
     if [ ! -z "$answer" ]; then
-        if [[ $answer != "Y" && $answer != "y" ]]; then
-            exit 1
-        fi
+        while [[ $answer != "Y" && $answer != "y" && $answer != "Yes" && $answer != "yes" ]]; do
+            if [[ $answer == "N" || $answer == "n" || $answer == "no" ]]; then
+                exit 1
+            fi
+            if [[ $answer == "E" || $answer == "e" || $answer == "edit" ]]; then
+                which nano
+                if [[ $? == 1 ]]; then
+                    which vi
+                    if [[ $? == 1 ]]; then
+                        echo "Can not find nano or vi editors, please install one of those editors."
+                        exit 1
+                    fi
+                    vi /srv/cloudAtHome/.env
+                else
+                    nano /srv/cloudAtHome/.env
+                fi
+            fi
+            unset answer
+            cat /srv/cloudAtHome/.env
+            read -p "Please verify contents of docker compose configuration variables file. Proceed (Yes/no/edit) ? " answer
+            if [ -z "$answer" ]; then
+                answer="Y"
+            fi
+        done
     fi
 
     docker ps -a | grep openvpn

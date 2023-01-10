@@ -1,12 +1,5 @@
 version: '3'
 
-networks:
-  bbw:
-    external: true
-  confined:
-    external: false
-    driver: bridge
-
 services:
   caddy:
     image: caddy:2-alpine
@@ -18,9 +11,6 @@ services:
       - /srv/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /srv/caddy/data:/data
       - /srv/caddy/config:/config
-    networks:
-      - bbw
-      - confined
 
   ghost-db:
     image: mariadb:latest
@@ -30,12 +20,9 @@ services:
       - /etc/localtime:/etc/localtime:ro
     environment:
       - MARIADB_ROOT_PASSWORD=${DBROOTPASSW}
-      - MARIADB_DATABASE=ghostdata
-      - MARIADB_USER=ghostusr
-      - MARIADB_PASSWORD=${DBUSERPASSW}
     restart: unless-stopped
-    networks:
-      - confined
+    expose:
+      - "3306"
 
   ghost:
     image: ghost:5-alpine
@@ -44,6 +31,8 @@ services:
       - caddy
       - ghost-db
     restart: unless-stopped
+    expose:
+      - "2368"
     environment:
       - NODE_ENV=production
       - url=${MYURL}
@@ -55,11 +44,8 @@ services:
       - mail__from=${MAILFROM}
       - database__client=mysql
       - database__connection__host=ghost-db
-      - database__connection__user=ghostusr
-      - database__connection__password=${DBUSERPASSW}
-      - database__connection__database=ghostdata
+      - database__connection__user=root
+      - database__connection__password=${DBROOTPASSW}
+      - database__connection__database=ghost
     volumes:
       - /srv/ghost/data:/var/lib/ghost/content
-    networks:
-      - bbw
-      - confined
