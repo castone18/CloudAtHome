@@ -31,7 +31,7 @@ cmd_help() {
         "
         ;;
         bash) echo "
-    bash [caddy|ghost-db|ghost]
+    bash [caddy|ghost-db|ghost|openvpn]
         Enter a bash shell in the container.
         "
         ;;
@@ -45,17 +45,17 @@ cmd_help() {
         "
         ;;
         ls) echo "
-    ls [caddy|ghost-db|ghost] directory_name
+    ls [caddy|ghost-db|ghost|openvpn] directory_name
         List a directory in the container filesystem.
         "
         ;;
         start) echo "
-    start [caddy|ghost-db|ghost]
+    start [caddy|ghost-db|ghost|openvpn]
         Start a stopped container.
         "
         ;;
         stop) echo "
-    stop [caddy|ghost-db|ghost]
+    stop [caddy|ghost-db|ghost|openvpn]
         Stop a running container.
         "
         ;;
@@ -291,7 +291,7 @@ case "$cmd" in
         backup
         ;;
     bash)
-        bash
+        bash "$@"
         ;;
 	help)
         if [ -z "$@" ]; then
