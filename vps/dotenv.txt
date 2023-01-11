@@ -7,3 +7,5 @@ MAILPASSW="your_password"
 MAILFROM="Cloud Admin <youremail@example.com>"
 MYURL="https://www.example.com"
 DBROOTPASSW="mysql_root_password"
+OPENVPNPORT=1194
+CADDYCERTFILE="none"

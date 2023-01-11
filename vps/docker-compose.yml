@@ -1,24 +1,40 @@
 version: '3'
 
 services:
+  openvpn:
+    image: castone38/dockervpn:latest
+    container_name: openvpn
+    restart: unless-stopped
+    ports:
+      - "${OPENVPNPORT}:${OPENVPNPORT}/udp"
+    volumes:
+      - /srv/cloudAtHome/openvpn/data:/etc/openvpn
+    cap_add:
+      - NET_ADMIN
+
   caddy:
-    image: caddy:2-alpine
+    image: castone38/docker-caddy:latest
     container_name: caddy
     restart: unless-stopped
+    depends_on:
+      openvpn:
+        condition: service_started
     ports:
       - "80:80"
       - "443:443"
       - "8443:8443"
     volumes:
-      - /srv/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - /srv/caddy/data:/data
-      - /srv/caddy/config:/config
+      - /srv/cloudAtHome/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - /srv/cloudAtHome/caddy/data:/data
+      - /srv/cloudAtHome/caddy/config:/config
+    cap_add:
+      - NET_ADMIN
 
   ghost-db:
     image: mariadb:latest
     container_name: ghost-db
     volumes:
-      - /srv/ghost-db/data:/var/lib/mysql
+      - /srv/cloudAtHome/ghost-db/data:/var/lib/mysql
       - /etc/localtime:/etc/localtime:ro
     environment:
       - MARIADB_ROOT_PASSWORD=${DBROOTPASSW}
@@ -56,4 +72,4 @@ services:
       - database__connection__password=${DBROOTPASSW}
       - database__connection__database=ghost
     volumes:
-      - /srv/ghost/data:/var/lib/ghost/content
+      - /srv/cloudAtHome/ghost/data:/var/lib/ghost/content

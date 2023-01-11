@@ -40,7 +40,7 @@ cmd_help() {
         Install and run the CloudAtHome docker containers. The installer will be prompted for
         configuration values such as domain name, ghost database passwords, etc. This cloudAtHome
         script will also be copied to /usr/local/bin. All docker containers will be started 
-        with restart unless_stopped, so they should restart on host reboots unless it they are 
+        with restart unless_stopped, so they should restart on host reboots unless they are 
         stopped before the reboot.
         "
         ;;
@@ -83,12 +83,12 @@ bash() {
 }
 
 install() {
-    mkdir -p /srv/caddy/data
-    mkdir -p /srv/caddy/config
-    mkdir -p /srv/ghost/data
-    mkdir -p /srv/ghost-db/data
     mkdir -p /srv/cloudAtHome
-    [ ! -f "/srv/caddy/Caddyfile" ] && cp caddy/Caddyfile /srv/caddy/Caddyfile
+    mkdir -p /srv/cloudAtHome/caddy/data
+    mkdir -p /srv/cloudAtHome/caddy/config
+    mkdir -p /srv/cloudAtHome/ghost/data
+    mkdir -p /srv/cloudAtHome/ghost-db/data
+    [ ! -f "/srv/cloudAtHome/caddy/Caddyfile" ] && cp caddy/Caddyfile /srv/cloudAtHome/caddy/Caddyfile
     [ ! -f "/srv/cloudAtHome/.env" ] && cp dotenv.txt /srv/cloudAtHome/.env
     [ ! -f "/usr/local/bin/cloudAtHome" ] && cp $0 /usr/local/bin/cloudAtHome
     chmod 770 /srv/cloudAtHome/.env
@@ -110,9 +110,9 @@ install() {
         MYDOMAIN=$domain_name
         sed -i "s/MYDOMAIN=.*/MYDOMAIN=\"$domain_name\"/" /srv/cloudAtHome/.env
         sed -i "s%MYURL=.*%MYURL=\"https://www.$domain_name\"%" /srv/cloudAtHome/.env
-        sed -i "/marker one/,/marker two/{s%https:.*%https://${MYDOMAIN}, https://www.${MYDOMAIN} \{%}" /srv/caddy/Caddyfile
-        sed -i "/marker two/,/marker three/{s%https://cloud.*%https://cloud.${MYDOMAIN}:443 \{%}" /srv/caddy/Caddyfile
-        sed -i "/marker three/,/marker four/{s%https://cloud.*%https://cloud.${MYDOMAIN}:8443 \{%}" /srv/caddy/Caddyfile
+        sed -i "/marker one/,/marker two/{s%https:.*%https://${MYDOMAIN}, https://www.${MYDOMAIN} \{%}" /srv/cloudAtHome/caddy/Caddyfile
+        sed -i "/marker two/,/marker three/{s%https://cloud.*%https://cloud.${MYDOMAIN}:443 \{%}" /srv/cloudAtHome/caddy/Caddyfile
+        sed -i "/marker three/,/marker four/{s%https://cloud.*%https://cloud.${MYDOMAIN}:8443 \{%}" /srv/cloudAtHome/caddy/Caddyfile
     fi
 
     echo "Let's Encrypt configuration:"
@@ -120,16 +120,24 @@ install() {
     if [ ! -z "$lets_encrypt_email" ]; then
         LETSENCRYPTEMAIL=$lets_encrypt_email
         sed -i "s/LETSENCRYPTEMAIL=.*/LETSENCRYPTEMAIL=\"$lets_encrypt_email\"/" /srv/cloudAtHome/.env
-        sed -i "/marker zero/,/marker one/{s/email.*/email $lets_encrypt_email/}" /srv/caddy/Caddyfile
+        sed -i "/marker zero/,/marker one/{s/email.*/email $lets_encrypt_email/}" /srv/cloudAtHome/caddy/Caddyfile
     fi
 
-    #echo "Web Proxy configuration:"
+    echo "Web Proxy configuration:"
+    read -p "   Enter full pathname of bzipped tar file with ssl certificates to restore if you have one ($CADDYCERTFILE) : " caddy_cert_file
+    if [ ! -z "$caddy_cert_file" ]; then
+        CADDYCERTFILE=$caddy_cert_file
+        sed -i "s%CADDYCERTFILE=.*%CADDYCERTFILE=\"$caddy_cert_file\"%" /srv/cloudAtHome/.env
+    fi
+    if [[ "$CADDYCERTFILE" != "none" ]]; then
+        tar -C /srv/cloudAtHome/caddy/data -xjf $CADDYCERTFILE
+    fi
     #read -p "   Enter VPN IP address of household nextcloud server (${MYNEXTCLOUDIP}) : " nextcloud_ip
     #if [ ! -z "$nextcloud_ip" ]; then
     #    MYNEXTCLOUDIP=$nextcloud_ip
     #    sed -i "s/MYNEXTCLOUDIP=.*/MYNEXTCLOUDIP=\"${nextcloud_ip}\"/" /srv/cloudAtHome/.env
-    #    sed -i "/marker two/,/marker three/{s/reverse_proxy.*/reverse_proxy ${MYNEXTCLOUDIP}:11000/}" /srv/caddy/Caddyfile
-    #    sed -i "/marker three/,/marker four/{s%reverse_proxy.*%reverse_proxy https://${MYNEXTCLOUDIP}:8080 \{%}" /srv/caddy/Caddyfile
+    #    sed -i "/marker two/,/marker three/{s/reverse_proxy.*/reverse_proxy ${MYNEXTCLOUDIP}:11000/}" /srv/cloudAtHome/caddy/Caddyfile
+    #    sed -i "/marker three/,/marker four/{s%reverse_proxy.*%reverse_proxy https://${MYNEXTCLOUDIP}:8080 \{%}" /srv/cloudAtHome/caddy/Caddyfile
     #fi
 
     echo "Ghost blog configuration:"
@@ -164,7 +172,14 @@ install() {
         sed -i "s/DBROOTPASSW=.*/DBROOTPASSW=\"${db_rootpassw}\"/" /srv/cloudAtHome/.env
     fi
 
-    cat /srv/caddy/Caddyfile
+    echo $'\n'"Openvpn configuration:"
+    read -p "   Enter OpenVPN port number ($OPENVPNPORT) : " openvpn_port
+    if [ ! -z "$openvpn_port" ]; then
+        OPENVPNPORT=$openvpn_port
+        sed -i "s/OPENVPNPORT=.*/OPENVPNPORT=\"${openvpn_port}\"/" /srv/cloudAtHome/.env
+    fi
+
+    cat /srv/cloudAtHome/caddy/Caddyfile
     read -p $'\n'"Please verify contents of Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
     if [ ! -z "$answer" ]; then
         while [[ $answer != "Y" && $answer != "y" && $answer != "Yes" && $answer != "yes" ]]; do
@@ -179,13 +194,13 @@ install() {
                         echo "Can not find nano or vi editors, please install one of those editors."
                         exit 1
                     fi
-                    vi /srv/caddy/Caddyfile
+                    vi /srv/cloudAtHome/caddy/Caddyfile
                 else
-                    nano /srv/caddy/Caddyfile
+                    nano /srv/cloudAtHome/caddy/Caddyfile
                 fi
             fi
             unset answer
-            cat /srv/caddy/Caddyfile
+            cat /srv/cloudAtHome/caddy/Caddyfile
             read -p "Please verify contents of Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
             if [ -z "$answer" ]; then
                 answer="Y"
@@ -225,19 +240,17 @@ install() {
         done
     fi
 
-    docker ps -a | grep openvpn
+    docker pull castone38/dockervpn:latest
+    docker run --rm castone38/dockervpn:latest cat /opt/dockervpn >./dockervpn
+    chmod +x ./dockervpn
+    ./dockervpn install -d $MYDOMAIN -p $OPENVPNPORT -c -s /srv/cloudAtHome/openvpn/data
+    docker run -v /srv/cloudAtHome/openvpn/data:/etc/openvpn --rm -it castone38/dockervpn ovpn_addstaticip -n cloudAtHome -i 10.8.0.2
+    ufw status | grep "$OPENVPNPORT/udp"
     if [[ $? == 1 ]]; then
-        docker pull castone38/dockervpn:latest
-        docker run --rm castone38/dockervpn:latest cat /opt/dockervpn >./dockervpn
-        chmod +x ./dockervpn
-        ./dockervpn install $MYDOMAIN 1200
-        ufw status | grep "1200/udp"
-        if [[ $? == 1 ]]; then
-            ufw allow 1200/udp comment "openvpn"
-            ufw reload
-        fi
-        rm ./dockervpn
+        ufw allow $OPENVPNPORT/udp comment "openvpn"
+        ufw reload
     fi
+    rm ./dockervpn
 
     [ ! -f "/srv/cloudAtHome/docker-compose.yml" ] && cp docker-compose.yml /srv/cloudAtHome/docker-compose.yml
     cd /srv/cloudAtHome
@@ -259,21 +272,19 @@ stop() {
 }
 
 uninstall() {
+    source /srv/cloudAtHome/.env
     cd /srv/cloudAtHome
     docker-compose down --remove-orphans
-    docker stop openvpn
-    docker rm openvpn
-    docker volume rm openvpn_data
     docker image rm castone38/dockervpn:latest
-    docker network rm bbw
     rm -f /usr/local/bin/dockervpn
     cd /
-    rm -rf /srv/caddy
-    rm -rf /srv/ghost-db
-    rm -rf /srv/ghost
+    rm -rf /srv/cloudAtHome/caddy
+    rm -rf /srv/cloudAtHome/ghost-db
+    rm -rf /srv/cloudAtHome/ghost
+    rm -rf /srv/cloudAtHome/openvpn
     rm -rf /srv/cloudAtHome
     rm -f /usr/local/bin/cloudAtHome
-    ufw delete allow 1200/udp
+    ufw delete allow $OPENVPNPORT/udp
     ufw reload
 }
 
