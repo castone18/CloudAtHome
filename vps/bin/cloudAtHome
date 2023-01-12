@@ -93,14 +93,6 @@ install() {
     [ ! -f "/usr/local/bin/cloudAtHome" ] && cp $0 /usr/local/bin/cloudAtHome
     chmod 770 /srv/cloudAtHome/.env
     chown root:root /srv/cloudAtHome/.env
-    #docker network ls | grep confined
-    #if [[ $? == 1 ]]; then
-    #    docker network create --internal confined
-    #fi
-    docker network ls | grep bbw
-    if [[ $? == 1 ]]; then
-        docker network create bbw
-    fi
 
     source /srv/cloudAtHome/.env
 
