@@ -39,8 +39,6 @@ services:
     environment:
       - MARIADB_ROOT_PASSWORD=${DBROOTPASSW}
     restart: unless-stopped
-    ports:
-      - "3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "--password=${DBROOTPASSW}", "ping", "-h", "localhost"]
       timeout: 20s
@@ -55,8 +53,6 @@ services:
       ghost-db:
         condition: service_healthy
     restart: unless-stopped
-    ports:
-      - "2368"
     environment:
       - NODE_ENV=production
       - url=${MYURL}
