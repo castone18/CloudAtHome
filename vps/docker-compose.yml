@@ -6,7 +6,7 @@ services:
     container_name: openvpn
     restart: unless-stopped
     ports:
-      - "${OPENVPNPORT}:${OPENVPNPORT}/udp"
+      - "${OPENVPNPORT}:1194/udp"
     volumes:
       - /srv/cloudAtHome/openvpn/data:/etc/openvpn
     cap_add:
