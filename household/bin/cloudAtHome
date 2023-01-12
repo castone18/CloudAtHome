@@ -1,0 +1,165 @@
+#!/bin/bash
+
+usage() {
+    echo "
+CloudAtHome CLI usage and overview.
+
+USAGE: $0 command [command-options]
+
+To get detailed usage for a command, run:
+    cloudAtHome help COMMAND
+
+The list of commands is:
+
+    bash         - enter a bash shell in the container
+    install      - install and run docker containers
+    ls           - list a directory in a container filesystem
+    start        - start a stopped container
+    stop         - stop a running container
+    uninstall    - stop and uninstall all containers (all configuration data will be lost)
+"
+}
+
+# Detailed command help
+# When called with no args, calls usage(), otherwise shows help for a command
+cmd_help() {
+	case "$1" in
+        bash) echo "
+    bash [TBD]
+        Enter a bash shell in the container.
+        "
+        ;;
+        install) echo "
+    install path_to_openvpn_config
+        Install and run the CloudAtHome docker containers. The user must provide the path to
+        on openvpn config file for the openvpn client container. This cloudAtHome
+        script will also be copied to /usr/local/bin. All docker containers will be started 
+        with restart unless_stopped, so they should restart on host reboots unless they are 
+        stopped before the reboot.
+        "
+        ;;
+        ls) echo "
+    ls [TBD] directory_name
+        List a directory in the container filesystem.
+        "
+        ;;
+        start) echo "
+    start [TBD]
+        Start a stopped container.
+        "
+        ;;
+        stop) echo "
+    stop [TBD]
+        Stop a running container.
+        "
+        ;;
+        uninstall) echo "
+    uninstall
+        Remove the cloudAtHome script from /usr/local/bin, stop all the docker containers, and remove all docker
+        artifacts (image, volumes, etc.) for each container. All configuration data and blog content will also
+        be removed.
+        "
+        ;;
+    *)
+        echo "Invalid command $1."
+        usage
+        exit 1
+        ;;
+    esac
+}
+
+backup() {
+    echo "Not implemented yet."
+}
+
+bash() {
+    docker exec -it $1 /bin/bash
+}
+
+install() {
+    if [ -z "$1" ]; then
+        >&2 echo "Path to openvpn client config file is required.\n"
+        >&2 cmd_help install
+        exit 1
+    fi
+
+    mkdir -p /srv/cloudAtHome/openvpn/config
+    [ ! -f "/usr/local/bin/cloudAtHome" ] && cp $0 /usr/local/bin/cloudAtHome
+    cp $1 /srv/cloudAtHome/openvpn/config/cloudAtHome.ovpn
+    
+    docker run -it --restart unless-stopped --cap-add=NET_ADMIN --device /dev/net/tun --name openvpn \
+        -v /srv/cloudAtHome/openvpn/config/cloudAtHome.ovpn:/vpn/vpn.conf -d castone38/dockervpn-client -D
+
+    docker run --sig-proxy=false --name nextcloud-aio-mastercontainer --restart unless-stopped \
+        --publish 8080:8080 -e APACHE_PORT=11000 --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
+        --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest
+    echo "CloudAtHome household install complete."
+}
+
+ls() {
+    docker exec -it $1 ls -AlF $2
+}
+
+start() {
+    docker start $1
+}
+
+stop() {
+    docker stop $1
+}
+
+uninstall() {
+    docker stop nextcloud-aio-mastercontainer openvpn
+    docker rm nextcloud-aio-mastercontainer openvpn
+    docker image rm castone38/dockervpn-client:latest
+    docker image rm nextcloud/all-in-one:latest
+    cd /
+    rm -rf /srv/cloudAtHome
+    rm -f /usr/local/bin/cloudAtHome
+}
+
+
+amiroot=`id -u`
+if (( $amiroot !=0 )); then
+    echo "You must run this script as root, or with sudo."
+    exit 1
+fi
+
+cmd="$1"
+[ -n "$1" ] && shift # scrape off command
+case "$cmd" in
+    backup)
+        backup
+        ;;
+    bash)
+        bash
+        ;;
+	help)
+        if [ -z "$@" ]; then
+            usage
+        else
+		    cmd_help "$@"
+        fi
+		;;
+    install)
+        install "$@"
+        ;;
+    ls)
+        ls "$@"
+        ;;
+    start)
+        start "$@"
+        ;;
+    stop)
+        stop "$@"
+        ;;
+    uninstall)
+        uninstall
+        ;;
+    *)
+        usage
+        exit 1
+    ;;
+esac
+
+exit 0
