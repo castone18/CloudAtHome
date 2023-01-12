@@ -1,5 +1,7 @@
 # CloudAtHome
-Docker containers for implementing personal cloud services economically.
+Docker containers for implementing personal cloud services.
+
+This project is a work in progress, so don't expect much to actually work yet.
 
 ## Rationale
 
@@ -34,3 +36,7 @@ through that vpn client connection.
 
 There are a lot of technical details to implementing this concept and CloudAtHome attempts to encapsulate
 that knowledge into scripts that make it easy to set up.
+
+## Usage
+
+See README's in vps and household directories for usage instructions on vps and in the household.
