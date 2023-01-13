@@ -83,6 +83,30 @@ bash() {
 }
 
 install() {
+    amiroot=`id -u`
+    if (( $amiroot !=0 )); then
+        echo "You must run this conmand as root, or with sudo."
+        exit 1
+    fi
+
+    snap list | grep docker
+    if [[ $? == 1 ]]; then
+        echo "Docker has been installed via snap. This will not work with CloudAtHome as snap docker does"
+        echo "not have full access to the file system. Please remove the docker snap with:"
+        echo "   snap remove docker docker-compose"
+        exit 1
+    fi
+    which docker
+    if [[ $? == 1 ]]; then
+        echo "Docker is not installed. Please install and try again, you may consult the vps README."
+        exit 1
+    fi
+    which docker-compose
+    if [[ $? == 1 ]]; then
+        echo "Docker compose is not installed. Please install and try again, you may consult the vps README."
+        exit 1
+    fi
+
     mkdir -p /srv/cloudAtHome
     mkdir -p /srv/cloudAtHome/caddy/data
     mkdir -p /srv/cloudAtHome/caddy/config
@@ -264,6 +288,12 @@ stop() {
 }
 
 uninstall() {
+    amiroot=`id -u`
+    if (( $amiroot !=0 )); then
+        echo "You must run this conmand as root, or with sudo."
+        exit 1
+    fi
+
     source /srv/cloudAtHome/.env
     cd /srv/cloudAtHome
     docker-compose down --remove-orphans
@@ -280,12 +310,6 @@ uninstall() {
     ufw reload
 }
 
-
-amiroot=`id -u`
-if (( $amiroot !=0 )); then
-    echo "You must run this script as root, or with sudo."
-    exit 1
-fi
 
 cmd="$1"
 [ -n "$1" ] && shift # scrape off command

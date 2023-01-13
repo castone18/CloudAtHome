@@ -1,0 +1,48 @@
+version: '3'
+
+volumes:
+  nextcloud:
+  nextcloud-db:
+
+services:
+  nextcloud-db:
+    image: mariadb:latest
+    container_name: nextcloud-db
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    volumes:
+      - nextcloud-db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=somerootpassword
+      - MYSQL_PASSWORD=somemysqlpassword
+      - MYSQL_DATABASE=db
+      - MYSQL_USER=mysqluser
+    healthcheck:
+      test: ["CMD", "mysqladmin", "--password=${DBROOTPASSW}", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: redis
+    restart: always
+    command: redis-server --requirepass someredispassword
+
+  app:
+    image: nextcloud
+    restart: always
+    ports:
+      - 8080:80
+    links:
+      - db
+      - redis
+    volumes:
+      - nextcloud:/var/www/html
+    environment:
+      - MYSQL_PASSWORD=somemysqlpassword
+      - MYSQL_DATABASE=db
+      - MYSQL_USER=mysqluser
+      - MYSQL_HOST=db
+      - REDIS_HOST_PASSWORD=someredispassword
+    depends_on:
+      - db
+      - redis
