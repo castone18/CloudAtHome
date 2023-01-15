@@ -1,5 +1,18 @@
 #!/bin/bash
 
+cmdlist() {
+    echo "
+        The list of commands is:
+
+            backup       - backup up the ghost-db and ghost containers
+            help         - get command help
+            install      - install CloudAtHome components
+            in           - enter interactive command mode
+            quit         - exit interactive mode
+            uninstall    - stop and uninstall all containers (all configuration data will be lost)
+    "
+}
+
 usage() {
     echo "
 CloudAtHome CLI usage and overview.
@@ -8,56 +21,51 @@ USAGE: $0 command [command-options]
 
 To get detailed usage for a command, run:
     cloudAtHome help COMMAND
-
-The list of commands is:
-
-    bash         - enter a bash shell in the container
-    install      - install and run docker containers
-    ls           - list a directory in a container filesystem
-    start        - start a stopped container
-    stop         - stop a running container
-    uninstall    - stop and uninstall all containers (all configuration data will be lost)
 "
+    cmdlist
 }
 
 # Detailed command help
 # When called with no args, calls usage(), otherwise shows help for a command
 cmd_help() {
 	case "$1" in
-        bash) echo "
-    bash [TBD]
-        Enter a bash shell in the container.
+        backup) echo "
+    backup
+        Not implemented yet.
         "
+        ;;
+        help) echo "
+    help command
+        Display help for command.
+        "
+        cmdlist
         ;;
         install) echo "
-    install path_to_openvpn_config
-        Install and run the CloudAtHome docker containers. The user must provide the path to
-        on openvpn config file for the openvpn client container. This cloudAtHome
-        script will also be copied to /usr/local/bin. All docker containers will be started 
-        with restart unless_stopped, so they should restart on host reboots unless they are 
-        stopped before the reboot.
+    install [vps|local|configure]
+        Install and run the CloudAtHome docker containers on the vps or locally, or 
+        configure/reconfigure the insall variables. With configure, the installer 
+        will be prompted for configuration values such as domain name, ghost database 
+        passwords, etc. On a local install, this cloudAtHome script will also be 
+        copied to /usr/local/bin. All docker containers will be started with restart unless_stopped, 
+        so they should restart on host reboots unless they are stopped before the reboot.
         "
         ;;
-        ls) echo "
-    ls [TBD] directory_name
-        List a directory in the container filesystem.
+        in) echo "
+    in
+        Enter into interactive mode where user is prompted for commands and each entered
+        command is executed until the user enters quit.
         "
         ;;
-        start) echo "
-    start [TBD]
-        Start a stopped container.
-        "
-        ;;
-        stop) echo "
-    stop [TBD]
-        Stop a running container.
+        quit) echo "
+    quit
+        Exit interactive mode.
         "
         ;;
         uninstall) echo "
-    uninstall
+    uninstall [vps|local|both]
         Remove the cloudAtHome script from /usr/local/bin, stop all the docker containers, and remove all docker
-        artifacts (image, volumes, etc.) for each container. All configuration data and blog content will also
-        be removed.
+        artifacts (image, volumes, etc.) for each container. All configuration data, databases, blog content, and
+        nextcloud content will also be removed.
         "
         ;;
     *)
@@ -72,94 +80,578 @@ backup() {
     echo "Not implemented yet."
 }
 
-bash() {
-    docker exec -it $1 /bin/bash
+exec_vps_cmd() {
+    ssh -p $SSHPORT $SUDOUSER@cloud.$MYDOMAIN "/usr/local/bin/rmtexec $SUDOPASSW $@"
+    return $?
+}
+
+scp_to_vps() {
+    local fname=`basename $1`
+    scp -P $SSHPORT $1 $SUDOUSER@cloud.$MYDOMAIN:/tmp
+    if [[ "$?" == 0 ]]; then
+        exec_vps_cmd "cp /tmp/$fname $2;rm /tmp/$fname"
+    fi
+    return $?
+}
+
+scp_to_vps_tmp() {
+    scp -P $SSHPORT $1 $SUDOUSER@cloud.$MYDOMAIN:/tmp
+    return $?
+}
+
+install_configure() {
+    mkdir -p /srv/cloudAtHome
+    [ ! -f "/srv/cloudAtHome/.env" ] && cp dotenv.txt /srv/cloudAtHome/.env
+    chmod 770 /srv/cloudAtHome/.env
+    chown root:root /srv/cloudAtHome/.env
+    source /srv/cloudAtHome/.env
+
+    echo "Enter 'help' in any prompt for help."
+    echo "Enter 'quit' in any prompt to exit."
+    echo "Common configuration:"
+    read -p "   Enter your domain name ($MYDOMAIN) : " domain_name
+    while [ ! -z "$domain_name" ]; do
+        case "$domain_name" in
+            help) 
+                echo "      Help not available for this field."
+                unset domain_name
+                read -p "   Enter your domain name ($MYDOMAIN) : " domain_name
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                MYDOMAIN=$domain_name
+                sed -i "s/MYDOMAIN=.*/MYDOMAIN=\"$domain_name\"/" /srv/cloudAtHome/.env
+                sed -i "s%MYURL=.*%MYURL=\"https://www.$domain_name\"%" /srv/cloudAtHome/.env
+                unset domain_name
+                ;;
+        esac
+    done
+
+    read -p "   Enter database root password : " -s db_rootpassw
+    echo ""
+    while [ ! -z "$db_rootpassw" ]; do
+        case "$db_rootpassw" in
+            help) 
+                echo "      Databases are created for the ghost and nextcloud platforms. A new root password is required 
+      for the database. When the database containers are created, this password will be configured as the root password,
+      and any other database user passwords that are required for the platform."
+                unset db_rootpassw
+                read -p "   Enter database root password : " -s db_rootpassw
+                echo ""
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                DBROOTPASSW=$db_rootpassw
+                sed -i "s/DBROOTPASSW=.*/DBROOTPASSW=\"${db_rootpassw}\"/" /srv/cloudAtHome/.env
+                unset db_rootpassw
+                ;;
+        esac
+    done
+
+    read -p "   Enter the vps sudo user name ($SUDOUSER) : " user_name
+    while [ ! -z "$user_name" ]; do
+        case "$user_name" in
+            help) 
+                echo "      If you defined a sudo user in your vps and disabled root login, enter the sudo user
+      name here. You may also enter root if you did not define a sudo user and disable root access."
+                unset user_name
+                read -p "   Enter the vps sudo user name ($SUDOUSER) : " user_name
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                SUDOUSER=$user_name
+                sed -i "s/SUDOUSER=.*/SUDOUSER=\"$user_name\"/" /srv/cloudAtHome/.env
+                unset user_name
+                ;;
+        esac
+    done
+
+    read -p "   Enter the vps sudo user password ($SUDOPASSW) : " -s sudo_passw
+    echo ""
+    while [ ! -z "$sudo_passw" ]; do
+        case "$sudo_passw" in
+            help) 
+                echo "      If you defined a sudo user in your vps and disabled root login, enter the sudo user
+      password here. You may also enter the root password if you did not define a sudo user and disable root access."
+                unset sudo_passw
+                read -p "   Enter the vps sudo user password ($SUDOPASSW) : " -s sudo_passw
+                echo ""
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                SUDOPASSW=$sudo_passw
+                sed -i "s/SUDOPASSW=.*/SUDOPASSW=\"$sudo_passw\"/" /srv/cloudAtHome/.env
+                unset sudo_passw
+                ;;
+        esac
+    done
+
+    read -p "   Enter the vps ssh port number ($SSHPORT) : " ssh_port
+    while [ ! -z "$ssh_port" ]; do
+        case "$ssh_port" in
+            help) 
+                echo "      If you moved the ssh server in the vps to a non standard port number, enter that port
+      number here. The standard port number is 22."
+                unset ssh_port
+                read -p "   Enter your vps ssh port number ($SSHPORT) : " ssh_port
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                SSHPORT=$ssh_port
+                sed -i "s/SSHPORT=.*/SSHPORT=\"$ssh_port\"/" /srv/cloudAtHome/.env
+                unset ssh_port
+                ;;
+        esac
+    done
+    scp -P $SSHPORT ./bin/rmtexec $SUDOUSER@cloud.$MYDOMAIN:/tmp
+    if [[ "$?" != 0 ]]; then
+        echo "      SSH access with the supplied credentials did not work. Please see the README's
+      to set up and test public key ssh access, then try again."
+        return 1
+    fi
+
+    echo "Let's Encrypt configuration:"
+    read -p "   Enter your email for Let's Encrypt registration ($LETSENCRYPTEMAIL) : " lets_encrypt_email
+    while [ ! -z "$lets_encrypt_email" ]; do
+        case "$lets_encrypt_email" in
+            help) 
+                echo "      Free SSL certificates will be obtained from Lets Encrypt. You need to provide an email
+      to Lets Encrypt when you obtain a certificate."
+                unset lets_encrypt_email
+                read -p "   Enter your email for Let's Encrypt registration ($LETSENCRYPTEMAIL) : " lets_encrypt_email
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                LETSENCRYPTEMAIL=$lets_encrypt_email
+                sed -i "s/LETSENCRYPTEMAIL=.*/LETSENCRYPTEMAIL=\"$lets_encrypt_email\"/" /srv/cloudAtHome/.env
+                unset lets_encrypt_email
+                ;;
+        esac
+    done
+
+    echo "Web Proxy configuration:"
+    read -p "   Enter full pathname of bzipped tar file with ssl certificates to restore if you have one ($CADDYCERTFILE) : " caddy_cert_file
+    while [ ! -z "$caddy_cert_file" ]; do
+        case "$caddy_cert_file" in
+            help) 
+                echo "      If you have backed up ssl certificates from a previous insallation into a tar.bz2 file, then you
+      can restore those certificates during install by entering the path name to the file here."
+                unset caddy_cert_file
+                read -p "   Enter full pathname of bzipped tar file with ssl certificates to restore if you have one ($CADDYCERTFILE) : " caddy_cert_file
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                CADDYCERTFILE=$caddy_cert_file
+                sed -i "s%CADDYCERTFILE=.*%CADDYCERTFILE=\"$caddy_cert_file\"%" /srv/cloudAtHome/.env
+                unset caddy_cert_file
+                ;;
+        esac
+    done
+
+    echo "Ghost blog configuration:"
+    read -p "   Enter SMTP host name ($MAILHOST) : " smtp_host
+    while [ ! -z "$smtp_host" ]; do
+        case "$smtp_host" in
+            help) 
+                echo "      The ghost and nextcloud platforms need the ability to send administrator emails. Enter the smtp
+      host name that can be used to send email."
+                unset smtp_host
+                read -p "   Enter SMTP host name ($MAILHOST) : " smtp_host
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                MAILHOST=$smtp_host
+                sed -i "s/MAILHOST=.*/MAILHOST=\"${smtp_host}\"/" /srv/cloudAtHome/.env
+                unset smtp_host
+                ;;
+        esac
+    done
+
+    read -p "   Enter SMTP port number ($MAILPORT) : " smtp_port
+    while [ ! -z "$smtp_port" ]; do
+        case "$smtp_port" in
+            help) 
+                echo "      The ghost and nextcloud platforms need the ability to send administrator emails. Enter the smtp
+      port number that can be used to send email."
+                unset smtp_port
+                read -p "   Enter SMTP port number ($MAILPORT) : " smtp_port
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                MAILPORT=$smtp_port
+                sed -i "s/MAILPORT=.*/MAILPORT=${smtp_port}/" /srv/cloudAtHome/.env
+                unset smtp_port
+                ;;
+        esac
+    done
+
+    read -p "   Enter email login user ($MAILUSER) : " email_user
+    while [ ! -z "$email_user" ]; do
+        case "$email_user" in
+            help) 
+                echo "      The ghost and nextcloud platforms need the ability to send administrator emails. Enter the email
+      login user that can be used to send email."
+                unset email_user
+                read -p "   Enter email login user ($MAILUSER) : " email_user
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                MAILUSER=$email_user
+                sed -i "s/MAILUSER=.*/MAILUSER=\"${email_user}\"/" /srv/cloudAtHome/.env
+                unset email_user
+                ;;
+        esac
+    done
+
+    read -p "   Enter email user password : " -s email_passw
+    echo ""
+    while [ ! -z "$email_passw" ]; do
+        case "$email_passw" in
+            help) 
+                echo "      The ghost and nextcloud platforms need the ability to send administrator emails. Enter the email
+      login password that can be used to send email."
+                unset email_passw
+                read -p "   Enter email user password : " -s email_passw
+                echo ""
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                MAILPASSW=$email_passw
+                sed -i "s/MAILPASSW=.*/MAILPASSW=\"${email_passw}\"/" /srv/cloudAtHome/.env
+                unset email_passw
+                ;;
+        esac
+    done
+
+    read -p "   Enter email from identity ($MAILFROM) : " email_identity
+    while [ ! -z "$email_identity" ]; do
+        case "$email_identity" in
+            help) 
+                echo "      The ghost and nextcloud platforms need the ability to send administrator emails. Enter the name
+      and email address that will display in the email from field."
+                unset email_identity
+                read -p "   Enter email from identity ($MAILFROM) : " email_identity
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                MAILFROM=$email_identity
+                sed -i "s/MAILFROM=.*/MAILFROM=\"${email_identity}\"/" /srv/cloudAtHome/.env
+                unset email_identity
+                ;;
+        esac
+    done
+
+    echo "Openvpn configuration:"
+    read -p "   Enter OpenVPN port number ($OPENVPNPORT) : " openvpn_port
+    while [ ! -z "$openvpn_port" ]; do
+        case "$openvpn_port" in
+            help) 
+                echo "      The ghost and nextcloud platforms need the ability to send administrator emails. Enter the name
+      and email address that will display in the email from field."
+                unset openvpn_port
+                read -p "   Enter OpenVPN port number ($OPENVPNPORT) : " -s openvpn_port
+                ;;
+            quit)
+                return 1
+                ;;
+            *)
+                OPENVPNPORT=$openvpn_port
+                sed -i "s/OPENVPNPORT=.*/OPENVPNPORT=\"${openvpn_port}\"/" /srv/cloudAtHome/.env
+                unset openvpn_port
+                ;;
+        esac
+    done
+    if [ ! -z "$openvpn_port" ]; then
+        OPENVPNPORT=$openvpn_port
+    fi
+    return 0
+}
+
+install_configure_verify() {
+    echo ""
+    echo ""
+    unset answer
+    cat /srv/cloudAtHome/.env
+    read -p "Please verify contents of docker compose configuration variables file. Proceed (Yes/no/edit) ? " answer
+    if [ ! -z "$answer" ]; then
+        while [[ $answer != "Y" && $answer != "y" && $answer != "Yes" && $answer != "yes" ]]; do
+            if [[ $answer == "N" || $answer == "n" || $answer == "no" ]]; then
+                return 1
+            fi
+            if [[ $answer == "E" || $answer == "e" || $answer == "edit" ]]; then
+                which nano
+                if [[ $? == 1 ]]; then
+                    which vi
+                    if [[ $? == 1 ]]; then
+                        echo "Can not find nano or vi editors, please install one of those editors."
+                        return 1
+                    fi
+                    vi /srv/cloudAtHome/.env
+                else
+                    nano /srv/cloudAtHome/.env
+                fi
+            fi
+            unset answer
+            cat /srv/cloudAtHome/.env
+            read -p "Please verify contents of docker compose configuration variables file. Proceed (Yes/no/edit) ? " answer
+            if [ -z "$answer" ]; then
+                answer="Y"
+            fi
+        done
+    fi
+    return 0
+}
+
+install_vps() {
+    if [ ! -f "/srv/cloudAtHome/.env" ]; then
+        install_configure
+        if [[ $? != 0 ]]; then
+            return 1
+        fi
+    fi
+    install_configure_verify
+    if [[ $? != 0 ]]; then
+        return 1
+    fi
+    mkdir -p /srv/cloudAtHome/vps/caddy
+    [ ! -f "/srv/cloudAtHome/vps/caddy/Caddyfile" ] && cp vps/Caddyfile /srv/cloudAtHome/vps/caddy/Caddyfile
+    sed -i "/marker one/,/marker two/{s%https:.*%https://${MYDOMAIN}, https://www.${MYDOMAIN} \{%}" /srv/cloudAtHome/vps/caddy/Caddyfile
+    sed -i "/marker two/,/marker three/{s%https://cloud.*%https://cloud.${MYDOMAIN}:443 \{%}" /srv/cloudAtHome/vps/caddy/Caddyfile
+    sed -i "/marker zero/,/marker one/{s/email.*/email $LETSENCRYPTEMAIL/}" /srv/cloudAtHome/vps/caddy/Caddyfile
+    cat /srv/cloudAtHome/vps/caddy/Caddyfile
+    read -p $'\n'"Please verify contents of vps Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
+    if [ ! -z "$answer" ]; then
+        while [[ $answer != "Y" && $answer != "y" && $answer != "Yes" && $answer != "yes" ]]; do
+            if [[ $answer == "N" || $answer == "n" || $answer == "no" ]]; then
+                return 1
+            fi
+            if [[ $answer == "E" || $answer == "e" || $answer == "edit" ]]; then
+                which nano
+                if [[ $? == 1 ]]; then
+                    which vi
+                    if [[ $? == 1 ]]; then
+                        echo "Can not find nano or vi editors, please install one of those editors."
+                        return 1
+                    fi
+                    vi /srv/cloudAtHome/vps/caddy/Caddyfile
+                else
+                    nano /srv/cloudAtHome/vps/caddy/Caddyfile
+                fi
+            fi
+            unset answer
+            cat /srv/cloudAtHome/vps/caddy/Caddyfile
+            read -p "Please verify contents of vps Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
+            if [ -z "$answer" ]; then
+                answer="Y"
+            fi
+        done
+    fi
+
+    # Configure openvpn for the vps
+    mkdir -p /srv/cloudAtHome/backups
+    docker pull castone38/dockervpn:latest
+    docker run --rm castone38/dockervpn:latest cat /opt/dockervpn >./dockervpn
+    chmod +x ./dockervpn
+    ./dockervpn install -d $MYDOMAIN -p $OPENVPNPORT -c -s /srv/cloudAtHome/vps/openvpn/data
+    docker run -v /srv/cloudAtHome/vps/openvpn/data:/etc/openvpn --rm -it castone38/dockervpn ovpn_addstaticip -n cloudAtHome -i 10.8.0.2
+    rm ./dockervpn
+    tar -cjf /srv/cloudAtHome/backups/vps_openvpn_config.tar.bz2 -C /srv/cloudAtHome/vps/openvpn data
+
+    # Copy everything to the vps and install
+    scp -P $SSHPORT ./bin/rmtexec $SUDOUSER@cloud.$MYDOMAIN:/tmp
+    ssh -p $SSHPORT $SUDOUSER@cloud.$MYDOMAIN "echo $SUDOPASSW | sudo -S cp /tmp/rmtexec /usr/local/bin/rmtexec 2>/dev/null"
+    exec_vps_cmd rm /tmp/rmtexec
+    exec_vps_cmd mkdir -p /srv/cloudAtHome/caddy
+    exec_vps_cmd mkdir -p /srv/cloudAtHome/backups
+    scp_to_vps /srv/cloudAtHome/.env /srv/cloudAtHome/.env
+    scp_to_vps /srv/cloudAtHome/vps/caddy/Caddyfile /srv/cloudAtHome/caddy/Caddyfile
+    scp_to_vps /srv/cloudAtHome/backups/vps_openvpn_config.tar.bz2 /srv/cloudAtHome/backups/vps_openvpn_config.tar.bz2
+    scp_to_vps /usr/local/bin/dockervpn /usr/local/bin/dockervpn
+    rm /usr/local/bin/dockervpn
+    if [[ "$CADDYCERTFILE" != "none" ]]; then
+        scp_to_vps_tmp $CADDYCERTFILE
+    fi
+    scp_to_vps vps/docker-compose.yml /srv/cloudAtHome/docker-compose.yml
+    scp_to_vps vps/bin/installVPS /usr/local/bin/installVPS
+    scp_to_vps vps/bin/uninstallVPS /usr/local/bin/uninstallVPS
+    exec_vps_cmd /usr/local/bin/installVPS
+    if [[ $? != 0 ]]; then
+        return 1
+    fi
+
+    touch /srv/cloudAtHome/.vps_installed
+    return 0
+}
+
+install_local() {
+    if [ ! -f "/srv/cloudAtHome/.vps_installed" ]; then
+        echo "You must install vps first."
+        cmd_help install
+        return 1
+    fi
+    install_configure_verify
+    if [[ $? != 0 ]]; then
+        return 1
+    fi
+    return 0
 }
 
 install() {
-    if [ -z "$1" ]; then
-        >&2 echo "Path to openvpn client config file is required.\n"
-        >&2 cmd_help install
-        exit 1
+    amiroot=`id -u`
+    if (( $amiroot !=0 )); then
+        echo "You must run this conmand as root, or with sudo."
+        return 1
     fi
 
-    mkdir -p /srv/cloudAtHome/openvpn/config
-    [ ! -f "/usr/local/bin/cloudAtHome" ] && cp $0 /usr/local/bin/cloudAtHome
-    cp $1 /srv/cloudAtHome/openvpn/config/cloudAtHome.ovpn
-    
-    docker run -it --restart unless-stopped --cap-add=NET_ADMIN --device /dev/net/tun --name openvpn \
-        -v /srv/cloudAtHome/openvpn/config/cloudAtHome.ovpn:/vpn/vpn.conf -d castone38/dockervpn-client -D
+    snap list | grep docker
+    if [[ $? == 0 ]]; then
+        echo "Docker has been installed via snap. This will not work with CloudAtHome as snap docker does"
+        echo "not have full access to the file system. Please remove the docker snap with:"
+        echo "   snap remove docker docker-compose"
+        return 1
+    fi
+    which docker
+    if [[ $? == 1 ]]; then
+        echo "Docker is not installed. Please install and try again, you may consult the README."
+        return 1
+    fi
+    which docker-compose
+    if [[ $? == 1 ]]; then
+        echo "Docker compose is not installed. Please install and try again, you may consult the README."
+        return 1
+    fi
 
-    docker run --sig-proxy=false --name nextcloud-aio-mastercontainer --restart unless-stopped \
-        --publish 8080:8080 -e APACHE_PORT=11000 --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
-        --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest
-    echo "CloudAtHome household install complete."
+    source /srv/cloudAtHome/.env
+
+    case "$1" in
+        vps)
+            install_vps
+            if [[ $? != 0 ]]; then
+                return 1
+            fi
+            echo "CloudAtHome vps install complete."
+            ;;
+        local)
+            install_local
+            if [[ $? != 0 ]]; then
+                return 1
+            fi
+            echo "CloudAtHome local install complete."
+            ;;
+        configure)
+            install_configure
+            ;;
+        *)
+            echo "Invalid install target."
+            cmd_help "install"
+            return 1
+            ;;
+    esac
+
+    return 0
 }
 
-ls() {
-    docker exec -it $1 ls -AlF $2
-}
-
-start() {
-    docker start $1
-}
-
-stop() {
-    docker stop $1
+quit() {
+    echo "quit is a valid command in interactive mode only."
 }
 
 uninstall() {
-    docker stop nextcloud-aio-mastercontainer openvpn
-    docker rm nextcloud-aio-mastercontainer openvpn
-    docker image rm castone38/dockervpn-client:latest
-    docker image rm nextcloud/all-in-one:latest
-    cd /
-    rm -rf /srv/cloudAtHome
-    rm -f /usr/local/bin/cloudAtHome
+    amiroot=`id -u`
+    if (( $amiroot !=0 )); then
+        echo "You must run this conmand as root, or with sudo."
+        return 1
+    fi
+
+    source /srv/cloudAtHome/.env
+
+    case "$1" in
+        vps)
+            exec_vps_cmd /usr/local/bin/uninstallVPS
+            rm -f /srv/cloudAtHome/backups/vps_openvpn_config.tar.bz2
+            rm -rf /srv/cloudAtHome/vps
+            rm -f /srv/cloudAtHome/.vps_installed
+            echo "CloudAtHome vps uninstall complete."
+            ;;
+        local)
+            echo "CloudAtHome local uninstall complete."
+            ;;
+        *)
+            echo "Invalid uninstall target."
+            cmd_help "uninstall"
+            return 1
+            ;;
+    esac
+
+    return 0
+}
+
+process_command() {
+    case "${cmd_array[0]}" in
+        backup)
+            backup
+            ;;
+        help)
+            if [ -z "${cmd_array[@]:1:1}" ]; then
+                usage
+            else
+                cmd_help "${cmd_array[@]:1}"
+            fi
+            ;;
+        in)
+            interactive
+            ;;
+        install)
+            install "${cmd_array[@]:1}"
+            ;;
+        quit)
+            quit
+            ;;
+        uninstall)
+            uninstall "${cmd_array[@]:1}"
+            ;;
+        *)
+            echo "Invalid command."
+            usage
+            return 1
+        ;;
+    esac
+}
+
+interactive() {
+    read -p "--> " -a cmd_array
+    while [[ "${cmd_array[0]}" != "quit" ]]; do
+        process_command
+        read -p "--> " -a cmd_array
+    done
 }
 
 
-amiroot=`id -u`
-if (( $amiroot !=0 )); then
-    echo "You must run this script as root, or with sudo."
-    exit 1
-fi
-
-cmd="$1"
-[ -n "$1" ] && shift # scrape off command
-case "$cmd" in
-    backup)
-        backup
-        ;;
-    bash)
-        bash
-        ;;
-	help)
-        if [ -z "$@" ]; then
-            usage
-        else
-		    cmd_help "$@"
-        fi
-		;;
-    install)
-        install "$@"
-        ;;
-    ls)
-        ls "$@"
-        ;;
-    start)
-        start "$@"
-        ;;
-    stop)
-        stop "$@"
-        ;;
-    uninstall)
-        uninstall
-        ;;
-    *)
-        usage
-        exit 1
-    ;;
-esac
+IFS=' '
+read -a cmd_array <<<"$@"
+process_command
 
 exit 0

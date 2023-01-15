@@ -22,7 +22,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8443:8443"
     volumes:
       - /srv/cloudAtHome/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /srv/cloudAtHome/caddy/data:/data

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+IFS=' '
+read -a cmd_array <<<"$@"
+echo ${cmd_array[0]} | sudo -S ${cmd_array[@]:1} 2>/dev/null

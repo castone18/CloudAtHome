@@ -9,3 +9,6 @@ MYURL="https://www.example.com"
 DBROOTPASSW="mysql_root_password"
 OPENVPNPORT=1194
 CADDYCERTFILE="none"
+SUDOUSER="root"
+SSHPORT=22
+SUDOPASSW="your_secret"

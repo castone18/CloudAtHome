@@ -1,0 +1,22 @@
+#!/bin/bash
+
+amiroot=`id -u`
+if (( $amiroot !=0 )); then
+    echo "You must run this conmand as root, or with sudo."
+    exit 1
+fi
+
+source /srv/cloudAtHome/.env
+
+cd /srv/cloudAtHome
+docker-compose down --remove-orphans
+ufw delete allow $OPENVPNPORT/udp
+ufw reload
+rm -f /usr/local/bin/dockervpn
+cd /srv
+rm -rf cloudAtHome
+rm -f /usr/local/bin/rmtexec
+rm -f /usr/local/bin/installVPS
+rm -f /usr/local/bin/uninstallVPS
+
+exit 0

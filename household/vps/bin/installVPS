@@ -1,0 +1,54 @@
+#!/bin/bash
+
+amiroot=`id -u`
+if (( $amiroot !=0 )); then
+    echo "You must run this conmand as root, or with sudo."
+    exit 1
+fi
+
+snap list | grep docker
+if [[ $? == 0 ]]; then
+    echo "Docker on vps has been installed via snap. This will not work with CloudAtHome as snap docker does"
+    echo "not have full access to the file system. Please remove the vps docker snap with:"
+    echo "   snap remove docker docker-compose"
+    exit 1
+fi
+which docker
+if [[ $? == 1 ]]; then
+    echo "Docker is not installed on vps. Please install and try again, you may consult the vps README."
+    exit 1
+fi
+which docker-compose
+if [[ $? == 1 ]]; then
+    echo "Docker compose is not installed on vps. Please install and try again, you may consult the vps README."
+    exit 1
+fi
+
+mkdir -p /srv/cloudAtHome/caddy/data
+mkdir -p /srv/cloudAtHome/caddy/config
+mkdir -p /srv/cloudAtHome/ghost/data
+mkdir -p /srv/cloudAtHome/ghost-db/data
+chmod 770 /srv/cloudAtHome/.env
+chown root:root /srv/cloudAtHome/.env
+
+source /srv/cloudAtHome/.env
+
+if [[ "$CADDYCERTFILE" != "none" ]]; then
+    fname=`basename $CADDYCERTFILE`
+    tar -C /srv/cloudAtHome/caddy/data -xjf /tmp/$fname
+fi
+rm /tmp/$fname
+
+mkdir -p /srv/cloudAtHome/openvpn
+tar -C /srv/cloudAtHome/openvpn -xjf /srv/cloudAtHome/backups/vps_openvpn_config.tar.bz2
+ufw status | grep "$OPENVPNPORT/udp"
+if [[ $? == 1 ]]; then
+    ufw allow $OPENVPNPORT/udp comment "openvpn"
+    ufw reload
+fi
+
+cd /srv/cloudAtHome
+echo "Starting vps containers. This can take a few minutes to complete."
+docker-compose up -d
+
+exit 0
