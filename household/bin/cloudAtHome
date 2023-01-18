@@ -490,6 +490,8 @@ install_local() {
         return 1
     fi
 
+    mkdir -p /usr/local/bin
+    cp $0 /usr/local/bin/cloudAtHome
     docker context use default
     mkdir -p /srv/cloudAtHome/openvpn/data
     mkdir -p /srv/cloudAtHome/caddy/data
@@ -617,6 +619,16 @@ uninstall() {
             echo "CloudAtHome vps uninstall complete."
             ;;
         local)
+            if [ -f "/srv/cloudAtHome/.vps_installed" ]; then
+                echo "You must uninstall vps first."
+                cmd_help uninstall
+                return 1
+            fi
+            cd /srv/cloudAtHome
+            docker-compose down --remove-orphans
+            cd /srv
+            rm -rf cloudAtHome
+            rm /usr/local/bin/cloudAtHome
             echo "CloudAtHome local uninstall complete."
             ;;
         *)
@@ -669,6 +681,9 @@ process_command() {
             ;;
         uninstall)
             uninstall "${cmd_array[@]:1}"
+            ;;
+        upgradecaddycerts)
+            upgradecaddycerts
             ;;
         *)
             echo "Invalid command."

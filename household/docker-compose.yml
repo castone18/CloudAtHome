@@ -34,7 +34,7 @@ services:
       - /srv/cloudAtHome/caddy/config:/config
 
   nextcloud:
-    image: castone38/nextcloud-all-in-one:latest
+    image: nextcloud/all-in-one:latest
     restart: unless-stopped
     container_name: nextcloud-aio-mastercontainer # This line is not allowed to be changed
     volumes:
