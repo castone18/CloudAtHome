@@ -16,44 +16,16 @@
     email youremail@example.com 
     # Optional staging lets encrypt for testing. Comment out for production.
     # acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
-}
-
-# marker one for install script
-
-https://example.com, https://www.example.com {
-    root * /var/www/html
-    php_fastcgi wordpress:9000
-    file_server
-    header {
-        # enable HSTS
-        Strict-Transport-Security max-age=31536000;
-        # disable clients from sniffing the media type
-        X-Content-Type-Options nosniff
-        # clickjacking protection
-        X-Frame-Options DENY
-        # keep referrer data off of HTTP connections
-        Referrer-Policy no-referrer-when-downgrade
-        # Content-Security-Policy: default-src 'self'
-    }
+    auto_https disable_certs
 }
 
 # marker two for install script
 
 https://cloud.example.com:443 {
-    reverse_proxy 10.8.0.2:11000
+    reverse_proxy localhost:11000
 }
 
 # marker three for install script
-
-https://cloud.example.com:8443 {
-    reverse_proxy https://10.8.0.2:8080 {
-        transport http {
-            tls_insecure_skip_verify
-        }
-    }
-}
-
-# marker four for install script
 
 # Refer to the Caddy docs for more information:
 # https://caddyserver.com/docs/caddyfile

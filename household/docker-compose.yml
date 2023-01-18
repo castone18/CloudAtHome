@@ -3,46 +3,44 @@ version: '3'
 volumes:
   nextcloud:
   nextcloud-db:
+  nextcloud_aio_mastercontainer:
+    name: nextcloud_aio_mastercontainer # This line is not allowed to be changed
 
 services:
-  nextcloud-db:
-    image: mariadb:latest
-    container_name: nextcloud-db
+  openvpn:
+    image: castone38/dockervpn-client
+    container_name: openvpn
+    cap_add:
+      - NET_ADMIN
+    network_mode: "host"
+    tmpfs:
+      - /run
+      - /tmp
     restart: unless-stopped
-    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     volumes:
-      - nextcloud-db:/var/lib/mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=somerootpassword
-      - MYSQL_PASSWORD=somemysqlpassword
-      - MYSQL_DATABASE=db
-      - MYSQL_USER=mysqluser
-    healthcheck:
-      test: ["CMD", "mysqladmin", "--password=${DBROOTPASSW}", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
+      - /dev/net:/dev/net:z
+      - /srv/cloudAtHome/openvpn/data:/vpn
 
-  redis:
-    image: redis
-    restart: always
-    command: redis-server --requirepass someredispassword
-
-  app:
-    image: nextcloud
-    restart: always
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
     ports:
-      - 8080:80
-    links:
-      - db
-      - redis
+      - "80:80"
+      - "443:443"
     volumes:
-      - nextcloud:/var/www/html
-    environment:
-      - MYSQL_PASSWORD=somemysqlpassword
-      - MYSQL_DATABASE=db
-      - MYSQL_USER=mysqluser
-      - MYSQL_HOST=db
-      - REDIS_HOST_PASSWORD=someredispassword
-    depends_on:
-      - db
-      - redis
+      - /srv/cloudAtHome/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - /srv/cloudAtHome/caddy/data:/data
+      - /srv/cloudAtHome/caddy/config:/config
+
+  nextcloud:
+    image: castone38/nextcloud-all-in-one:latest
+    restart: unless-stopped
+    container_name: nextcloud-aio-mastercontainer # This line is not allowed to be changed
+    volumes:
+      - nextcloud_aio_mastercontainer:/mnt/docker-aio-config # This line is not allowed to be changed
+      - /var/run/docker.sock:/var/run/docker.sock:ro 
+    ports:
+      - 8080:8080
+    environment: 
+      - APACHE_PORT=11000

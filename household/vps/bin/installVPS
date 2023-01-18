@@ -26,8 +26,7 @@ fi
 
 mkdir -p /srv/cloudAtHome/caddy/data
 mkdir -p /srv/cloudAtHome/caddy/config
-mkdir -p /srv/cloudAtHome/ghost/data
-mkdir -p /srv/cloudAtHome/ghost-db/data
+mkdir -p /srv/cloudAtHome/wordpress/data
 chmod 770 /srv/cloudAtHome/.env
 chown root:root /srv/cloudAtHome/.env
 
@@ -39,12 +38,28 @@ if [[ "$CADDYCERTFILE" != "none" ]]; then
 fi
 rm /tmp/$fname
 
-mkdir -p /srv/cloudAtHome/openvpn
+mkdir -p /srv/cloudAtHome/openvpn/configs
 tar -C /srv/cloudAtHome/openvpn -xjf /srv/cloudAtHome/backups/vps_openvpn_config.tar.bz2
 ufw status | grep "$OPENVPNPORT/udp"
 if [[ $? == 1 ]]; then
     ufw allow $OPENVPNPORT/udp comment "openvpn"
     ufw reload
+fi
+
+if [ -f /etc/docker/daemon.json ]; then
+    echo "Docker daemon.json already exists, so log rotation changes will not be made to it. Make "
+    echo "sure you configure log rotation for docker."
+else
+    cat > /etc/docker/daemon.json <<EOF
+{
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "10m",
+        "max-file": "5"
+    }
+}
+EOF
+    systemctl restart docker
 fi
 
 cd /srv/cloudAtHome
