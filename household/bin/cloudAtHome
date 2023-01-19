@@ -104,13 +104,13 @@ backup() {
 }
 
 exec_vps_cmd() {
-    ssh -p $SSHPORT $SUDOUSER@cloud.$MYDOMAIN "/usr/local/bin/rmtexec $SUDOPASSW $@"
+    ssh -p $SSHPORT $SUDOUSER@vps.$MYDOMAIN "/usr/local/bin/rmtexec $SUDOPASSW $@"
     return $?
 }
 
 scp_to_vps() {
     local fname=`basename $1`
-    scp -P $SSHPORT $1 $SUDOUSER@cloud.$MYDOMAIN:/tmp
+    scp -P $SSHPORT $1 $SUDOUSER@vps.$MYDOMAIN:/tmp
     if [[ "$?" == 0 ]]; then
         exec_vps_cmd "cp /tmp/$fname $2;rm /tmp/$fname"
     fi
@@ -118,23 +118,19 @@ scp_to_vps() {
 }
 
 scp_to_vps_tmp() {
-    scp -P $SSHPORT $1 $SUDOUSER@cloud.$MYDOMAIN:/tmp
+    scp -P $SSHPORT $1 $SUDOUSER@vps.$MYDOMAIN:/tmp
     return $?
 }
 
 scp_from_vps() {
-    scp -P $SSHPORT $SUDOUSER@cloud.$MYDOMAIN:$1 $2
+    scp -P $SSHPORT $SUDOUSER@vps.$MYDOMAIN:$1 $2
     return $?
 }
 
 getovpnclient() {
-    if [ -z $1 ]; then
-        echo "Please provide a filename to place configuration into."
-        cmd_help getovpnclient
-        return 1
-    fi
-    source /srv/cloudAtHome/.env
+    docker context use vps
     local fname=`basename $1`
+    local client="${fname%.*}"
     if [ ! -z $2 ]; then
         if [ ! -f $2 ]; then
             which nano
@@ -142,6 +138,7 @@ getovpnclient() {
                 which vi
                 if [[ $? == 1 ]]; then
                     echo "Can not find nano or vi editors, please install one of those editors."
+                    docker context use default
                     return 1
                 fi
                 vi $2
@@ -152,17 +149,17 @@ getovpnclient() {
         if [ ! -f $2 ]; then
             echo "Please create file $2."
             cmd_help getovpnclient
+            docker context use default
             return 1
         fi
-        scp_to_vps_tmp $2
         local customfname=`basename $2`
-        exec_vps_cmd /usr/local/bin/dockervpn getclient /tmp/$fname /tmp/$customfname
-        exec_vps_cmd rm /tmp/$customfname
+        docker cp $2 openvpn:/etc/openvpn/configs/fragments/$customfname
+        docker exec -it openvpn /usr/local/bin/ovpn_makclient -n $client -f $customfname
     else
-        exec_vps_cmd /usr/local/bin/dockervpn getclient /srv/cloudAtHome/openvpn/configs/$fname
+        docker exec -it openvpn /usr/local/bin/ovpn_makclient -n $client
     fi
-    scp_from_vps /tmp/$fname $1
-    exec_vps_cmd rm /tmp/$fname
+    docker cp openvpn:/etc/openvpn/configs/clients/$client.ovpn $1
+    docker context use default
     return 0
 }
 
@@ -280,7 +277,7 @@ install_configure() {
                 ;;
         esac
     done
-    scp -P $SSHPORT ./bin/rmtexec $SUDOUSER@cloud.$MYDOMAIN:/tmp
+    scp -P $SSHPORT ./bin/rmtexec $SUDOUSER@vps.$MYDOMAIN:/tmp
     if [[ "$?" != 0 ]]; then
         echo "      SSH access with the supplied credentials did not work. Please see the README's
       to set up and test public key ssh access, then try again."
@@ -448,8 +445,8 @@ install_vps() {
     tar -cjf /srv/cloudAtHome/backups/vps_openvpn_config.tar.bz2 -C /srv/cloudAtHome/vps/openvpn data
 
     # Copy everything to the vps and install
-    scp -P $SSHPORT ./bin/rmtexec $SUDOUSER@cloud.$MYDOMAIN:/tmp
-    ssh -p $SSHPORT $SUDOUSER@cloud.$MYDOMAIN "echo $SUDOPASSW | sudo -S cp /tmp/rmtexec /usr/local/bin/rmtexec 2>/dev/null"
+    scp -P $SSHPORT ./bin/rmtexec $SUDOUSER@vps.$MYDOMAIN:/tmp
+    ssh -p $SSHPORT $SUDOUSER@vps.$MYDOMAIN "echo $SUDOPASSW | sudo -S cp /tmp/rmtexec /usr/local/bin/rmtexec 2>/dev/null"
     exec_vps_cmd rm /tmp/rmtexec
     exec_vps_cmd mkdir -p /srv/cloudAtHome/caddy
     exec_vps_cmd mkdir -p /srv/cloudAtHome/backups
@@ -469,7 +466,8 @@ install_vps() {
         return 1
     fi
 
-    docker context create vps --docker "host=ssh://$SUDOUSER@cloud.$MYDOMAIN:$SSHPORT"
+    docker context create vps --docker "host=ssh://$SUDOUSER@vps.$MYDOMAIN:$SSHPORT"
+    runuser -u $SUDO_USER -- docker context create vps --docker \"host=ssh://$SUDOUSER@vps.$MYDOMAIN:$SSHPORT\"
     touch /srv/cloudAtHome/.vps_installed
     return 0
 }
