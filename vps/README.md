@@ -1,4 +1,4 @@
-# CloudAtHome Installation
+# CloudAtHome VPS Installation
 
 Follow this guideline to install CloudAtHome on a VPS.
 
@@ -34,13 +34,6 @@ CloudAtHome is only supported on a debian based linux distribution. It is assume
 
 
 ## Installation
-
-You will need the following information to complete the install:
-
-    * A domain name
-    * An email for the let's encrypt ssl certificate registration
-    * SMTP host name, login user, port number, login user password, and email from address, so the blog and nextcloud can send administrator emails.
-    * A root password and user password for blog and nextcloud databases. These can be the same password.
 
 Installation of the vps is completely driven from the in home computer. See the README in the household directory for instructions to install the vps portion of CloudAtHome.
 

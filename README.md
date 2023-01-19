@@ -19,7 +19,7 @@ client, file sharing, and many more.
 from a VPS provider. The author uses a $5 USD/month vps from [Dynu](https://www.dynu.com). The
 in home nextcloud server connects as a client to this VPN server avoiding the In Home Server
 Issues below.
-* A [Ghost](https://ghost.org) server running on the vps to provide a personal blog.
+* A [Wordpress](https://wordpress.org) server running on the vps to provide a personal blog.
 * A [Caddy](https://caddyserver.com) web server running on the vps in reverse proxy mode to expose
 the in home server to the Intenet and to provide automatic free SSL certificates from LetsEncrypt.
 
