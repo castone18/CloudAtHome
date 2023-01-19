@@ -11,7 +11,6 @@ cmdlist() {
             in            - enter interactive command mode
             quit          - exit interactive mode
             uninstall     - stop and uninstall all containers (all configuration data will be lost)
-            upgradecaddycerts - Copy vps caddy certs to local caddy
     "
 }
 
@@ -492,43 +491,6 @@ install_local() {
     cp $0 /usr/local/bin/cloudAtHome
     docker context use default
     mkdir -p /srv/cloudAtHome/openvpn/data
-    mkdir -p /srv/cloudAtHome/caddy/data
-    [ ! -f "/srv/cloudAtHome/caddy/Caddyfile" ] && cp Caddyfile /srv/cloudAtHome/caddy/Caddyfile
-    sed -i "/marker two/,/marker three/{s%https://cloud.*%https://cloud.${MYDOMAIN}:443 \{%}" /srv/cloudAtHome/caddy/Caddyfile
-    sed -i "/marker zero/,/marker two/{s/email.*/email $LETSENCRYPTEMAIL/}" /srv/cloudAtHome/caddy/Caddyfile
-    cat /srv/cloudAtHome/caddy/Caddyfile
-    read -p $'\n'"Please verify contents of vps Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
-    if [ ! -z "$answer" ]; then
-        while [[ $answer != "Y" && $answer != "y" && $answer != "Yes" && $answer != "yes" ]]; do
-            if [[ $answer == "N" || $answer == "n" || $answer == "no" ]]; then
-                return 1
-            fi
-            if [[ $answer == "E" || $answer == "e" || $answer == "edit" ]]; then
-                which nano
-                if [[ $? == 1 ]]; then
-                    which vi
-                    if [[ $? == 1 ]]; then
-                        echo "Can not find nano or vi editors, please install one of those editors."
-                        return 1
-                    fi
-                    vi /srv/cloudAtHome/caddy/Caddyfile
-                else
-                    nano /srv/cloudAtHome/caddy/Caddyfile
-                fi
-            fi
-            unset answer
-            cat /srv/cloudAtHome/caddy/Caddyfile
-            read -p "Please verify contents of vps Web Proxy configuration file. Proceed (Yes/no/edit) ? " answer
-            if [ -z "$answer" ]; then
-                answer="Y"
-            fi
-        done
-    fi
-    mkdir -p /srv/cloudAtHome/caddy/config
-    exec_vps_cmd tar -C /srv/cloudAtHome/caddy/data -cjf /tmp/caddycerts.tar.bz2 caddy
-    scp_from_vps /tmp/caddycerts.tar.bz2 /tmp/caddycerts.tar.bz2
-    tar -C /srv/cloudAtHome/caddy/data -xjf /tmp/caddycerts.tar.bz2
-    rm /tmp/caddycerts.tar.bz2
     cp $2 /srv/cloudAtHome/openvpn/data/vpn.conf
     cp docker-compose.yml /srv/cloudAtHome
     cd /srv/cloudAtHome
@@ -640,19 +602,6 @@ uninstall() {
     return 0
 }
 
-upgradecaddycerts() {
-    amiroot=`id -u`
-    if (( $amiroot !=0 )); then
-        echo "You must run this conmand as root, or with sudo."
-        return 1
-    fi
-
-    exec_vps_cmd tar -cjf /tmp/caddycerts.tar.bz2 /srv/cloudAtHome/caddy/data
-    scp_from_vps /tmp/caddycerts.tar.bz2 /tmp/caddycerts.tar.bz2
-    tar -C /srv/cloudAtHome/caddy/data -xjf /tmp/caddycerts.tar.bz2
-    rm /tmp/caddycerts.tar.bz2
-}
-
 process_command() {
     case "${cmd_array[0]}" in
         backup)
@@ -679,9 +628,6 @@ process_command() {
             ;;
         uninstall)
             uninstall "${cmd_array[@]:1}"
-            ;;
-        upgradecaddycerts)
-            upgradecaddycerts
             ;;
         *)
             echo "Invalid command."

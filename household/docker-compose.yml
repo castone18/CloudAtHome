@@ -21,18 +21,6 @@ services:
       - /dev/net:/dev/net:z
       - /srv/cloudAtHome/openvpn/data:/vpn
 
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /srv/cloudAtHome/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - /srv/cloudAtHome/caddy/data:/data
-      - /srv/cloudAtHome/caddy/config:/config
-
   nextcloud:
     image: nextcloud/all-in-one:latest
     restart: unless-stopped
