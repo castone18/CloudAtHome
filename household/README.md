@@ -59,4 +59,10 @@ You need to configure wordpress and nextcloud. You can configure wordpress at ht
 
 ## Notes
 
+If you backup your photos from your phone to nextcloud, the first upload will normally be a large amount of photos. You can generate all of the photo previews offline by using the following commands. The -u 33 provides the userid for the www-data user which is obtained in the first commmand. Generating previews offline will greatly improve performance when you view the photos folder in your browser. It can take quite some time to generate the previews.
 
+                docker exec -it nextcloud-aio-nextcloud id -u www-data
+                docker exec -it -u 33 nextcloud-aio-nextcloud ./occ app:install previewgenerator
+                docker exec -it -u 33 nextcloud-aio-nextcloud ./occ files:scan-app-data
+                docker exec -it -u 33 nextcloud-aio-nextcloud ./occ preview:generate-all --verbose
+                docker exec -it -u 33 nextcloud-aio-nextcloud ./occ app:remove previewgenerator
